@@ -1,0 +1,16 @@
+[package]
+name = "korp-mono-fill-gen"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.97"
+clap = { version = "4.5.31", features = ["derive"] }
+rayon = "1.10.0"
+regex = "1.11.1"
+walkdir = "2.5.0"
+hfst = "0.1.4"
+base64 = "0.22.1"
+gtcorpusutil = { git = "https://github.com/giellatekno/gtcorpusutil" }
+without-ats = "0.1"
+thiserror = "2.0.18"
