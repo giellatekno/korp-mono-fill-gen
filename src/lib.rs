@@ -23,7 +23,7 @@ pub struct GenAttempt {
     /// Results of generation. If non-empty, the first result is used as
     /// the final replacement in the file. If empty, there may be additional
     /// attempts made, in the upper `attempts`.
-    result: Vec<String>,
+    pub result: Vec<String>,
 }
 
 impl GenAttempt {
