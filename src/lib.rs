@@ -134,7 +134,6 @@ impl Processor {
             let (gen_str, reading) = Self::split_gen(m.as_str())?;
             statuses.push(GenStatus::new(word_form.clone(), reading));
             let status = statuses.last_mut().unwrap();
-            println!("{gen_str}");
 
             // For each of the strategies of generation, first check if
             // it applies (the first if-let), i.e. if that strategy makes
@@ -159,7 +158,6 @@ impl Processor {
                 // no strategies were able to generate a lemma. Use the word form
                 // as lemma? Alternative: If a compound, use the lemma of the
                 // last part as lemma.
-                new_s.push_str("=====FALLBACK====");
                 new_s.push_str(&word_form.trim());
             }
 
