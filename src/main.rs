@@ -112,7 +112,7 @@ fn main() -> anyhow::Result<()> {
 
     for file in files {
         let p = file.to_path_buf();
-        match processor.process(file) {
+        match processor.process(&file) {
             Ok((updated_file_data, gen_statuses)) => {
                 if !dry_run {
                     std::fs::write(p, updated_file_data.as_bytes())?;

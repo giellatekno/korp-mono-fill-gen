@@ -85,7 +85,7 @@ impl Processor {
 
     pub fn process(
         &self,
-        file: KorpMonoFilePath,
+        file: &KorpMonoFilePath,
     ) -> Result<(String, Vec<GenStatus>), ProcessFileError> {
         let fst = &self.fst;
         let s = file.read_to_string()?;
@@ -123,37 +123,44 @@ impl Processor {
         // on errors
 
         let mut i = 0;
+
         for m in self.re.find_iter(&s) {
             // find the word form, used only for debugging
             let word_form = find_word_form(&s, m.start()).to_string();
 
-            // first append everything up to the last match
-            new_s.push_str(&s[i..m.start()]);
+            let before_match = &s[i..m.start()];
+            new_s.push_str(before_match);
 
             let (gen_str, reading) = Self::split_gen(m.as_str())?;
-            statuses.push(GenStatus::new(word_form, reading));
+            statuses.push(GenStatus::new(word_form.clone(), reading));
             let status = statuses.last_mut().unwrap();
+            println!("{gen_str}");
 
-            if do_lookup(gen_str, &mut new_s, &fst, status) {
-                continue;
+            // For each of the strategies of generation, first check if
+            // it applies (the first if-let), i.e. if that strategy makes
+            // sense to do for this input-string, e.g. a strategy that only
+            // changes something of adverbs would return None for a starting
+            // generation string of a verb.
+            // Then, if the strategy applies, try generating the lemma with
+            // this updated input generation string. If that succeeds, we
+            // can move on to the next GEN (the continue). If it doesn't,
+            // we try the next strategy.
+            let mut found_lemma = false;
+            for strategy in GENERATION_STRATEGIES {
+                if let Some(updated_input) = strategy(gen_str) {
+                    found_lemma = do_lookup(&updated_input, &mut new_s, &fst, status);
+                    if found_lemma {
+                        break;
+                    }
+                }
             }
 
-            // couldn't generate lemma, so try to change the generation
-            // string in various ways
-
-            // first check if this strategy even makes sense to try..
-            if let Some(s) = try_replace_n_sg_nom_with_n_pl_nom(gen_str) {
-                // if so, do a new lookup with this replacement
-                if do_lookup(&s, &mut new_s, &fst, status) {
-                    // if now succesful, we can move to next GEN
-                    continue;
-                }
-            };
-
-            if let Some(s) = try_replace_inf_with_prfprc(gen_str) {
-                if do_lookup(&s, &mut new_s, &fst, status) {
-                    continue;
-                }
+            if !found_lemma {
+                // no strategies were able to generate a lemma. Use the word form
+                // as lemma? Alternative: If a compound, use the lemma of the
+                // last part as lemma.
+                new_s.push_str("=====FALLBACK====");
+                new_s.push_str(&word_form.trim());
             }
 
             // update `i` to point at the next index after the match, so that
@@ -226,6 +233,7 @@ fn find_word_form(s: &str, i: usize) -> &str {
         .expect("GENEXPR has a previous > or NL");
     &s[wordform_start_i..i - 1]
 }
+
 //
 //
 // Below: Functinos to change the input in various ways to try to
@@ -233,16 +241,49 @@ fn find_word_form(s: &str, i: usize) -> &str {
 //
 //
 
+const GENERATION_STRATEGIES: [fn(&str) -> Option<String>; 3] = [
+    // The string as it comes from korp-mono, unaltered. MUST be
+    // tried first.
+    initial,
+    try_replace_n_sg_nom_with_n_pl_nom,
+    try_replace_inf_with_prfprc,
+];
+
+// The "initial" (do-nothing) strategy. Doesn't change anything in the input,
+// and is always possible to do.
+fn initial(s: &str) -> Option<String> {
+    Some(s.to_string())
+}
+
 fn try_replace_n_sg_nom_with_n_pl_nom(s: &str) -> Option<String> {
     s.contains("N+Sg+Nom")
-        .then_some(s.replace("N+SG+Nom", "N+Pl+Nom"))
+        .then_some(s.replace("N+Sg+Nom", "N+Pl+Nom"))
 }
+
+fn try_replace_inf_with_prfprc(s: &str) -> Option<String> {
+    s.contains("+Inf").then_some(s.replace("+Inf", "+PrfPrc"))
+}
+
+//$ cat misc/NOT_GENERATED.txt |cut -f1|husme|cut -f2|sed 's/+Pl+\(...\)$/+Sg\1/'|sed -E "s/(Acc|Gen|Ill|Loc|Ess)$/Nom/"|grep -v "Attr$"|hdsme|grep "+?"|grep "+[^?]"|cut -d"+" -f1|uniq|wc -l
+//    3605
+// cat misc/NOT_GENERATED.txt |wc -l
+// 11901
+//fn try_replace_pl_non_nom_with_sg_nom(s: &str) -> Option<String> {
+//    if s.contains("+Pl+") {
+//        let i = s.rfind("+Pl+").unwrap();
+//        let after_pl = &s[i..];
+//        
+//    } else {
+//        None
+//    }
+//    s.contains("+Pl+").then_some(
+//}
 
 // THIS IS FOR Adjectives
 fn try_replace_a_sg_nom_with_a_attr() {
     unimplemented!()
 }
 
-fn try_replace_inf_with_prfprc(s: &str) -> Option<String> {
-    s.contains("+Inf").then_some(s.replace("+Inf", "+PrfPrc"))
+fn try_remove_err(s: &str) -> Option<String> {
+    s.contains("+Err").then_some("hey".to_string())
 }
